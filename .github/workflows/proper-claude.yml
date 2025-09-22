@@ -1,0 +1,48 @@
+---
+name: Proper Claude Research with Local Claude Repo
+on:
+  workflow_dispatch:
+    inputs:
+      research_task:
+        description: 'Research task'
+        required: true
+        default: 'network optimization using claude methodology'
+
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+jobs:
+  claude-research-with-methodology:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - name: Execute Claude Code with Claude Methodology
+        run: |
+          cd ~ && nix-shell -p nodejs expect --run 'expect -c "
+            set timeout 600
+            log_file -noappend claude-research.log
+            spawn npx @anthropic-ai/claude-code --dangerously-skip-permissions \"Clone the .claude methodology repository from github.com/garmir/claude-methodology to your home directory as .claude, then use those methodology files to research: ${{ github.event.inputs.research_task }}. Reference the patterns in your local .claude files for optimal approaches.\"
+            expect { -re {.*Choose.*style.*} { send \"1\r\" } }
+            expect { -re {.*bypass permissions.*} { send \"2\r\" } }
+            expect {
+              -re {.*methodology.*|.*research.*|.*claude.*} {
+                sleep 30
+              }
+              eof {
+                exit 0
+              }
+              timeout {
+                exit 1
+              }
+            }
+          "'
+      - name: Copy Claude Output
+        run: nix-shell -p coreutils --run 'cp ~/claude-research.log . 2>/dev/null || echo "No research log found" > error.txt'
+      - name: Upload Research Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-methodology-research
+          path: |
+            claude-research.log
+            error.txt
